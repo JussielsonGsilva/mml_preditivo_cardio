@@ -1,0 +1,13 @@
+# Ambiente virtual Python: pesado e recriado com "pip install"
+.venv/
+
+# Arquivos temporários gerados pelo Python
+__pycache__/
+*.pyc
+
+# Ignora TUDO dentro da pasta dados...
+dados/*
+
+# ...EXCETO o dataset original (licença CC0 permite redistribuir).
+# O "!" significa "não ignorar este arquivo"
+!dados/heart.csv
