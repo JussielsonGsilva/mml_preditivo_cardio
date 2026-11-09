@@ -6,6 +6,56 @@ Modelo de classificação que estima o risco de doença cardíaca a partir de da
 
 ---
 
+## Resumo do projeto
+
+| | |
+|---|---|
+| **Problema** | Prever se um paciente tem risco de doença cardíaca a partir de 11 dados clínicos |
+| **Dados** | [Heart Failure Prediction Dataset](https://www.kaggle.com/datasets/fedesoriano/heart-failure-prediction) — 918 pacientes, licença CC0 |
+| **Modelo** | Regressão Logística com limiar de decisão ajustado para 30% |
+| **Resultado** (pacientes nunca vistos pelo modelo) | **Recall de 94,1%** — encontra 96 de cada 102 doentes · Acurácia 86,4% · Precisão 83,5% |
+| **Entrega** | API em FastAPI + interface web em HTML, CSS e JavaScript |
+| **Tecnologias** | Python · pandas · scikit-learn · matplotlib · FastAPI · Pydantic · Uvicorn · HTML/CSS/JS |
+
+### Interface
+
+O usuário preenche os dados do paciente em português (sem precisar conhecer siglas) e recebe a probabilidade estimada, a classificação de risco e uma barra mostrando a posição em relação ao limiar de 30%.
+
+![Interface web — formulário e resultado de risco alto](graficos/09_interface_web.png)
+
+### Destaques técnicos
+
+- **Prioridade ao recall:** em saúde, deixar um doente sem diagnóstico é o erro mais grave. O limiar de decisão foi reduzido de 50% para 30% (escolhido por validação cruzada, só com os dados de treino), cortando os doentes não detectados de 10 para 6 no teste, com acurácia praticamente igual.
+- **Dados faltando disfarçados:** 172 registros tinham colesterol igual a 0. A investigação mostrou que 88% deles eram de pacientes doentes; em vez de só preencher, foi criada a variável `Colesterol_ausente` — que se tornou a mais forte do modelo.
+- **Sem vazamento de dados:** mediana, padronização e escolha do limiar calculadas **somente com o treino**; o conjunto de teste foi usado uma única vez, na avaliação final.
+- **Comparação honesta de modelos:** Regressão Logística e Random Forest empataram na validação cruzada; foi escolhido o modelo mais simples e explicável.
+- **Esteira completa (`Pipeline`):** o modelo salvo recebe os dados no formato original e faz todo o tratamento sozinho, garantindo que a API aplique exatamente o que foi avaliado.
+
+### Como executar
+
+```bash
+# Baixa o projeto e entra na pasta
+git clone https://github.com/JussielsonGsilva/mml_preditivo_cardio.git
+cd mml_preditivo_cardio
+
+# Cria o ambiente virtual e instala as bibliotecas
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Liga a API e a interface
+uvicorn api:app --reload
+```
+
+Depois, no navegador:
+
+- **Interface:** http://127.0.0.1:8000/app
+- **Documentação da API:** http://127.0.0.1:8000/docs
+
+> O passo a passo completo — da análise exploratória à interface, com todos os comandos, saídas esperadas e decisões — está nas seções abaixo.
+
+---
+
 ## Sumário
 
 1. [Objetivo](#1-objetivo)
@@ -116,7 +166,8 @@ mml_preditivo_cardio/
 │   ├── 05_matriz_confusao.png            # Matriz de confusão da Regressão Logística no teste
 │   ├── 06_limiar_decisao.png             # Recall, precisão e acurácia conforme o limiar
 │   ├── 07_matriz_confusao_final.png      # Matriz de confusão final (limiar 0,30) no teste
-│   └── 08_pesos_modelo.png               # Peso de cada variável na Regressão Logística
+│   ├── 08_pesos_modelo.png               # Peso de cada variável na Regressão Logística
+│   └── 09_interface_web.png              # Print da interface web com resultado de risco alto
 ├── 01_ler_dados.py          # Etapa 5: leitura e primeira visão dos dados
 ├── 02_estatisticas.py       # Etapa 6: estatísticas e busca de valores impossíveis
 ├── 03_grafico_alvo.py       # Etapa 6: distribuição e balanceamento do alvo (com %)
@@ -1811,9 +1862,14 @@ uvicorn api:app --reload
 
 - **Python 3.13**
 - **pandas** — manipulação de dados
-- **scikit-learn** — machine learning
+- **scikit-learn** — machine learning (Regressão Logística, Pipeline, validação cruzada)
 - **matplotlib** — visualização
+- **joblib** — salvar e carregar o modelo treinado
+- **FastAPI** + **Pydantic** — API de previsões com validação dos dados
+- **Uvicorn** — servidor da API
+- **HTML, CSS e JavaScript** (puros) — interface web
 - **venv** — isolamento do ambiente
+- **Git** + **GitHub** — versionamento e publicação
 
 ---
 
