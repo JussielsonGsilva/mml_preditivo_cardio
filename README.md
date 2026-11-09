@@ -136,6 +136,7 @@ mml_preditivo_cardio/
 ├── 17_avaliacao_final.py       # Etapa 9: avaliação final no teste (limiar 0,50 × 0,30)
 ├── 18_explicar_modelo.py       # Etapa 9: pesos e razão de chances de cada variável
 ├── 19_salvar_modelo.py         # Etapa 10: monta a esteira completa, confere e salva o modelo
+├── api.py                      # Etapa 10: API de previsões (FastAPI)
 ├── preprocessamento.py         # Etapa 10: classe TratadorColesterol (usada pelo modelo salvo e pela API)
 └── README.md                # Este documento
 ```
@@ -156,6 +157,9 @@ mml_preditivo_cardio/
 | pandas | 3.1.1 | Ler e manipular o CSV como tabela |
 | scikit-learn | 1.9.1 | Modelos de ML, divisão treino/teste e métricas |
 | matplotlib | 3.11.2 | Gráficos da análise e dos resultados |
+| fastapi | 0.162.2 | Framework da API de previsões (rotas, validação e documentação automática) |
+| uvicorn | 0.54.0 | Servidor que executa a API e recebe as requisições HTTP |
+| pydantic | 2.14.3 | Validação dos dados do paciente (instalado junto com o FastAPI) |
 
 ---
 
@@ -243,28 +247,44 @@ pip install -r requirements.txt
 pip list
 ```
 
-Conteúdo do `requirements.txt` (18 bibliotecas: as 3 principais e suas dependências):
+Conteúdo do `requirements.txt` (32 bibliotecas: as 5 principais — pandas, scikit-learn, matplotlib, fastapi e uvicorn — e suas dependências):
 
 ```
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.16.0
+click==8.5.1
 cloudpickle==3.1.2
 contourpy==1.4.0
 cycler==0.12.1
+fastapi==0.162.2
 fonttools==4.68.0
+h11==0.16.0
+idna==3.20
 joblib==1.6.0
 kiwisolver==1.5.1
 matplotlib==3.11.2
 narwhals==2.28.0
 numpy==2.5.4
+opentelemetry-api==1.45.2
 packaging==26.3
 pandas==3.1.1
 pillow==13.0.0
+pydantic==2.14.3
+pydantic_core==2.50.4
 pyparsing==3.3.3
 python-dateutil==4.0.0
 scikit-learn==1.9.1
 scipy==1.18.1
+starlette==1.10.0
 threadpoolctl==3.8.0
+typing-inspection==0.4.5
+typing_extensions==4.16.0
 tzdata==2026.6
+uvicorn==0.54.0
 ```
+
+> **Histórico:** o arquivo foi gerado com 18 bibliotecas após instalar `pandas`, `scikit-learn` e `matplotlib` (etapas 1 a 9). Na etapa 10 foram instalados `fastapi` e `uvicorn` (`pip install fastapi uvicorn`) e o arquivo foi regerado com `pip freeze`, passando a 32.
 
 > **Como o arquivo foi gerado** (com o `.venv` ativo, depois de instalar `pandas`, `scikit-learn` e `matplotlib`):
 >
@@ -1478,6 +1498,203 @@ Previsões idênticas ao modelo em memória: True
 
 > ⚠️ **Segurança:** arquivos `.joblib` podem executar código ao serem carregados. **Só carregue arquivos `.joblib` de fontes confiáveis** — como o gerado por este próprio script.
 
+### 6.27. API — primeira rota e servidor
+
+A API é construída com **FastAPI** e executada pelo servidor **Uvicorn**:
+
+| Peça | Papel | Comparação com o mundo PHP |
+|---|---|---|
+| **FastAPI** | Onde a API é escrita: rotas, validação e respostas | O código da aplicação (controllers) |
+| **Uvicorn** | Servidor que executa a API e recebe as requisições HTTP | PHP-FPM + Nginx |
+
+**Por que FastAPI (e não Flask):** valida os dados de entrada automaticamente (via Pydantic) e gera **documentação interativa** em `/docs`, onde é possível testar a API pelo navegador. É hoje o padrão mais usado para servir modelos de ML em Python.
+
+**Conceitos usados na primeira versão:**
+
+| Código | O que faz |
+|---|---|
+| `app = FastAPI(...)` | Cria a aplicação; título, descrição e versão aparecem em `/docs` |
+| `@app.get("/")` | **Decorador**: liga a URL `GET /` à função logo abaixo |
+| `return {...}` | O dicionário devolvido é convertido em **JSON** automaticamente |
+
+#### Como executar
+
+São necessários **dois terminais**: um fica ocupado com o servidor, o outro é usado para os testes.
+
+**Terminal 1** — na raiz do projeto, com o `(.venv)` ativo:
+
+```bash
+# Inicia o servidor:
+# api:app   -> no arquivo api.py, use o objeto "app"
+# --reload  -> reinicia sozinho sempre que o código for salvo
+uvicorn api:app --reload
+```
+
+O terminal fica ocupado exibindo o log do servidor até que se pressione `Ctrl+C`. Saída esperada (início):
+
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+```
+
+**Terminal 2** — na raiz do projeto:
+
+```bash
+# Faz uma requisição GET para a rota raiz da API
+curl http://127.0.0.1:8000/
+```
+
+Saída esperada:
+
+```
+{"status":"API no ar","documentacao":"/docs"}
+```
+
+> O prompt do terminal aparece colado logo após a resposta porque o JSON não termina com quebra de linha. É normal.
+
+**Navegador** — acesse **http://127.0.0.1:8000/docs**: a documentação interativa mostra a rota `GET /`. Clicando nela, em **Try it out** e em **Execute**, a resposta aparece na própria página.
+
+### 6.28. API — campos do paciente em português e validação (Pydantic)
+
+A API recebe os dados do paciente com **nomes de campos em português**. Internamente, eles são traduzidos para os nomes originais (em inglês) usados no treino do modelo. Nos valores de texto, palavras comuns foram traduzidas e as **siglas médicas** foram mantidas, por aparecerem assim em laudos.
+
+#### Campos da API
+
+| Campo na API | Coluna no modelo | Tipo | Valores aceitos |
+|---|---|---|---|
+| `idade` | `Age` | inteiro | 1 a 120 |
+| `sexo` | `Sex` | texto | `M` ou `F` |
+| `tipo_dor_peito` | `ChestPainType` | texto | `ASY`, `ATA`, `NAP`, `TA` |
+| `pressao_repouso` | `RestingBP` | inteiro | 50 a 250 (mm Hg) |
+| `colesterol` | `Cholesterol` | inteiro | 0 a 700 (0 = exame não realizado) |
+| `glicemia_jejum_alta` | `FastingBS` | inteiro | `0` ou `1` |
+| `ecg_repouso` | `RestingECG` | texto | `Normal`, `ST`, `LVH` |
+| `freq_cardiaca_max` | `MaxHR` | inteiro | 50 a 250 (bpm) |
+| `angina_exercicio` | `ExerciseAngina` | texto | `S` ou `N` (no modelo: `Y`/`N`) |
+| `depressao_st` | `Oldpeak` | decimal | -5 a 10 |
+| `inclinacao_st` | `ST_Slope` | texto | `Subindo`, `Plano`, `Descendo` (no modelo: `Up`, `Flat`, `Down`) |
+
+Os limites numéricos seguem os mínimos e máximos da base (seção 6.6) com margem de segurança. O limite mínimo de `pressao_repouso` (50) **bloqueia na entrada** o erro de pressão 0 encontrado na análise exploratória.
+
+#### Guia de siglas
+
+O guia abaixo é exibido no **topo da página `/docs`** (definido na descrição da API, em Markdown), e cada campo também traz sua explicação:
+
+| Sigla | Campo | Significado |
+|---|---|---|
+| ASY | `tipo_dor_peito` | Assintomático (sem dor no peito) |
+| ATA | `tipo_dor_peito` | Angina atípica |
+| NAP | `tipo_dor_peito` | Dor não anginosa |
+| TA | `tipo_dor_peito` | Angina típica |
+| Normal | `ecg_repouso` | Eletrocardiograma normal |
+| ST | `ecg_repouso` | Anormalidade na onda ST-T |
+| LVH | `ecg_repouso` | Hipertrofia ventricular esquerda |
+
+#### Como a validação funciona
+
+| Código | O que faz |
+|---|---|
+| `class Paciente(BaseModel)` | Define a "ficha" com os 11 campos aceitos |
+| `idade: int` | Exige número inteiro |
+| `Field(ge=1, le=120)` | Limites: `ge` = maior ou igual, `le` = menor ou igual |
+| `Literal["M", "F"]` | Aceita **somente** os valores listados |
+| `description` / `examples` | Texto de ajuda e exemplo pré-preenchido em `/docs` |
+| `@app.post("/prever")` | Rota que **recebe** a ficha do paciente (POST) |
+
+Se algum campo vier fora das regras, o FastAPI **recusa automaticamente** com o código HTTP **422**, informando cada campo inválido — a função da rota nem chega a ser executada.
+
+> Nesta versão, a rota `/prever` apenas devolve os dados recebidos, para testar a validação. O modelo é ligado na seção seguinte.
+
+#### Testes
+
+Com o servidor rodando no **terminal 1** (`uvicorn api:app --reload`):
+
+**Navegador** — em **http://127.0.0.1:8000/docs**: o guia de siglas aparece no topo; em `POST /prever` → **Try it out** → **Execute**, o exemplo pré-preenchido retorna **200** com `"Dados válidos recebidos"`.
+
+**Terminal 2** — na raiz do projeto, envio de dados **inválidos** (idade 200 e sexo "X"):
+
+```bash
+# Envia um POST com JSON inválido para testar a validação
+curl -X POST http://127.0.0.1:8000/prever \
+  -H "Content-Type: application/json" \
+  -d '{"idade": 200, "sexo": "X", "tipo_dor_peito": "ASY", "pressao_repouso": 140, "colesterol": 289, "glicemia_jejum_alta": 0, "ecg_repouso": "Normal", "freq_cardiaca_max": 122, "angina_exercicio": "S", "depressao_st": 1.5, "inclinacao_st": "Plano"}'
+```
+
+Saída esperada (código 422, um erro para cada campo inválido):
+
+```
+{"detail":[{"type":"less_than_equal","loc":["body","idade"],"msg":"Input should be less than or equal to 120","input":200,"ctx":{"le":120}},{"type":"literal_error","loc":["body","sexo"],"msg":"Input should be 'M' or 'F'","input":"X","ctx":{"expected":"'M' or 'F'"}}]}
+```
+
+### 6.29. API — previsão com o modelo
+
+A rota `POST /prever` passa a usar o modelo salvo na seção 6.26.
+
+| Peça do `api.py` | O que faz |
+|---|---|
+| `joblib.load(...)` **no topo do arquivo** | Carrega o modelo **uma única vez**, quando o servidor sobe (dentro da rota, seria lido do disco a cada requisição) |
+| `from preprocessamento import TratadorColesterol` | **Obrigatório** antes do `joblib.load`: o modelo salvo depende dessa classe |
+| Dicionário `CAMPOS` | Traduz os nomes dos campos: `"idade"` → `"Age"`, `"tipo_dor_peito"` → `"ChestPainType"` etc. |
+| Dicionário `VALORES` | Traduz os valores: `"S"` → `"Y"`, `"Plano"` → `"Flat"`, `"Subindo"` → `"Up"`, `"Descendo"` → `"Down"` |
+| `pd.DataFrame([linha])` | Monta uma tabela de **uma linha** (o paciente), formato que a esteira espera |
+| `predict_proba(...)[0, 1]` | Probabilidade de doença do paciente |
+| `probabilidade >= LIMIAR` | Aplica o limiar de 0,30 (seção 6.22) |
+
+**Fluxo de uma requisição:**
+
+```
+JSON em português
+  → validação (Pydantic; dados inválidos são recusados com 422)
+  → tradução de nomes e valores
+  → esteira: colesterol → padronização + one-hot → Regressão Logística
+  → probabilidade
+  → limiar 0,30 → risco ALTO ou BAIXO
+  → resposta em JSON
+```
+
+**Formato da resposta:**
+
+| Campo | Conteúdo |
+|---|---|
+| `probabilidade_doenca` | Probabilidade em % (uma casa decimal) |
+| `risco` | `ALTO` (probabilidade ≥ 30%) ou `BAIXO` |
+| `limiar_usado` | `30.0` |
+| `interpretacao` | Frase explicando a classificação |
+| `aviso` | Lembrete de que o projeto não substitui avaliação médica |
+
+#### Testes
+
+Com o servidor rodando no **terminal 1** (`uvicorn api:app --reload`):
+
+**Navegador** — em **http://127.0.0.1:8000/docs**, `POST /prever` → **Try it out** → **Execute** com o exemplo pré-preenchido (homem, 54 anos, sem dor no peito, angina no exercício, ST plano). Resultado esperado:
+
+```
+{"probabilidade_doenca":93.5,"risco":"ALTO","limiar_usado":30.0,"interpretacao":"Probabilidade igual ou acima do limiar de 30%: o modelo classifica como risco alto.","aviso":"Projeto de estudo. NÃO substitui avaliação médica."}
+```
+
+**Terminal 2** — na raiz do projeto, perfil de **baixo risco** (mulher, 40 anos, angina atípica, ST subindo, frequência máxima alta):
+
+```bash
+# Envia um paciente de perfil de baixo risco
+curl -X POST http://127.0.0.1:8000/prever \
+  -H "Content-Type: application/json" \
+  -d '{"idade": 40, "sexo": "F", "tipo_dor_peito": "ATA", "pressao_repouso": 120, "colesterol": 200, "glicemia_jejum_alta": 0, "ecg_repouso": "Normal", "freq_cardiaca_max": 170, "angina_exercicio": "N", "depressao_st": 0.0, "inclinacao_st": "Subindo"}'
+```
+
+Saída esperada:
+
+```
+{"probabilidade_doenca":1.4,"risco":"BAIXO","limiar_usado":30.0,"interpretacao":"Probabilidade abaixo do limiar de 30%: o modelo classifica como risco baixo.","aviso":"Projeto de estudo. NÃO substitui avaliação médica."}
+```
+
+#### Interpretação dos testes
+
+| Perfil | Probabilidade | Risco | Por quê (pesos da seção 6.24) |
+|---|---|---|---|
+| Homem, 54 anos, `ASY`, angina no exercício, ST plano | 93,5% | ALTO | Reúne as variáveis que mais aumentam o risco: `Sex_M`, `ChestPainType_ASY`, `ExerciseAngina_Y`, `ST_Slope_Flat` |
+| Mulher, 40 anos, `ATA`, sem angina, ST subindo | 1,4% | BAIXO | Reúne variáveis que diminuem o risco: `ST_Slope_Up`, `ChestPainType_ATA` |
+
+Os resultados são coerentes com a explicação do modelo: a API aplica exatamente a mesma esteira avaliada nas etapas anteriores.
+
 ---
 
 ## 7. Etapas do projeto e andamento
@@ -1493,7 +1710,7 @@ Previsões idênticas ao modelo em memória: True
 | 7 | Preparação dos dados (treino/teste, colesterol, codificação) | ✅ Concluída |
 | 8 | Treinamento dos modelos (padronização, Regressão Logística, Random Forest, validação cruzada, escolha: **Regressão Logística**) | ✅ Concluída |
 | 9 | Avaliação e explicação do modelo (matriz de confusão, limiar 0,30, avaliação final — recall 94,1%, pesos das variáveis) | ✅ Concluída |
-| 10 | API para previsões (transformador do colesterol ✅, modelo salvo ✅, API ⏳) | 🔄 Em andamento |
+| 10 | API para previsões (transformador do colesterol, modelo salvo, FastAPI, campos em português, validação, previsão com o modelo) | ✅ Concluída |
 | 11 | Publicação no GitHub (`.gitignore`, `requirements.txt`, repositório público) | ✅ Publicado — atualizado a cada etapa |
 
 ---
