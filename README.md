@@ -159,6 +159,31 @@ mml_preditivo_cardio/
 
 Todos os comandos abaixo são executados **no terminal**, a partir da pasta onde você quer guardar o projeto.
 
+### 6.0. Caminho rápido — clonar o repositório
+
+Repositório: **https://github.com/JussielsonGsilva/mml_preditivo_cardio**
+
+O repositório já contém todos os scripts, os gráficos e o dataset original (`dados/heart.csv`, licença CC0). Basta clonar, criar o ambiente e instalar as bibliotecas:
+
+```bash
+# Baixa o projeto completo do GitHub
+git clone https://github.com/JussielsonGsilva/mml_preditivo_cardio.git
+
+# Entra na pasta do projeto
+cd mml_preditivo_cardio
+
+# Cria e ativa o ambiente virtual
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Instala as bibliotecas nas versões exatas do projeto
+pip install -r requirements.txt
+```
+
+Depois disso, siga a partir da **seção 6.5**, executando os scripts na ordem (`01_...` até `18_...`). **Não pule a seção 6.7** (cópia de trabalho): a partir do script 03, os scripts leem `dados/heart_trabalho.csv`, que é criado nela. As seções 6.1 a 6.4 explicam como o projeto foi montado do zero e podem ser puladas por quem clonar o repositório.
+
+> Os CSVs intermediários (`treino.csv`, `teste_final.csv` etc.) **não estão no repositório**: eles são recriados pelos scripts 08 a 11. Os arquivos ignorados pelo Git estão listados no `.gitignore`.
+
 ### 6.1. Criar a pasta do projeto e a pasta de dados
 
 ```bash
@@ -1363,7 +1388,7 @@ Gráfico salvo em graficos/08_pesos_modelo.png
 | 8 | Treinamento dos modelos (padronização, Regressão Logística, Random Forest, validação cruzada, escolha: **Regressão Logística**) | ✅ Concluída |
 | 9 | Avaliação e explicação do modelo (matriz de confusão, limiar 0,30, avaliação final — recall 94,1%, pesos das variáveis) | ✅ Concluída |
 | 10 | API para previsões | ⏳ Pendente |
-| 11 | Publicação no GitHub | ⏳ Pendente |
+| 11 | Publicação no GitHub (`.gitignore`, `requirements.txt`, repositório público) | ✅ Publicado — atualizado a cada etapa |
 
 ---
 
