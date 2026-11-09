@@ -10,6 +10,9 @@ import pandas as pd
 # Importa a classe principal do framework
 from fastapi import FastAPI
 
+# StaticFiles: permite a API entregar arquivos prontos (HTML, CSS, JS) de uma pasta
+from fastapi.staticfiles import StaticFiles
+
 # BaseModel: base para criar a "ficha" de dados; Field: regras de cada campo
 from pydantic import BaseModel, Field
 
@@ -87,6 +90,10 @@ app = FastAPI(
     title="API de Risco Cardíaco",
     description=GUIA_SIGLAS,
     version="1.0.0")
+
+# Entrega os arquivos da pasta "web" no endereço /app;
+# html=True faz /app abrir automaticamente o web/index.html
+app.mount("/app", StaticFiles(directory="web", html=True), name="web")
 
 
 # "Ficha" do paciente: cada atributo é um campo do JSON recebido.

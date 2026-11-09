@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!-- lang="pt-BR": informa ao navegador que a página está em português -->
+<html lang="pt-BR">
+<head>
+    <!-- UTF-8: garante que acentos (ç, ã, é) apareçam corretamente -->
+    <meta charset="UTF-8">
+    <!-- Ajusta a página à largura da tela (importante no celular) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Texto que aparece na aba do navegador -->
+    <title>Risco Cardíaco</title>
+    <!-- Liga o arquivo de estilos (fica na mesma pasta web/) -->
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+    <!-- Título principal e aviso -->
+    <h1>Risco Cardíaco</h1>
+    <p>Preencha os dados clínicos do paciente. Projeto de estudo: NÃO substitui avaliação médica.</p>
+
+    <!-- Formulário: id="formulario" será usado pelo JavaScript na próxima etapa -->
+    <form id="formulario">
+
+        <!-- ===== Dados pessoais ===== -->
+        <h2>Dados pessoais</h2>
+
+        <!-- Idade: número inteiro entre 1 e 120 (mesmos limites da API) -->
+        <label for="idade">Idade (anos)</label>
+        <input type="number" id="idade" name="idade" min="1" max="120" required>
+
+        <!-- Sexo: o usuário vê "Masculino", a API recebe "M" -->
+        <label for="sexo">Sexo</label>
+        <select id="sexo" name="sexo" required>
+            <option value="">Selecione...</option>
+            <option value="M">Masculino</option>
+            <option value="F">Feminino</option>
+        </select>
+
+        <!-- ===== Exames em repouso ===== -->
+        <h2>Exames em repouso</h2>
+
+        <!-- Pressão arterial em repouso: 50 a 250 mm Hg -->
+        <label for="pressao_repouso">Pressão arterial em repouso (mm Hg)</label>
+        <input type="number" id="pressao_repouso" name="pressao_repouso" min="50" max="250" required>
+
+        <!-- Colesterol: 0 a 700; 0 significa exame não realizado -->
+        <label for="colesterol">Colesterol (mg/dl) — use 0 se o exame não foi feito</label>
+        <input type="number" id="colesterol" name="colesterol" min="0" max="700" required>
+
+        <!-- Glicemia em jejum: o usuário vê a faixa, a API recebe 0 ou 1 -->
+        <label for="glicemia_jejum_alta">Glicemia em jejum</label>
+        <select id="glicemia_jejum_alta" name="glicemia_jejum_alta" required>
+            <option value="">Selecione...</option>
+            <option value="0">Até 120 mg/dl (normal)</option>
+            <option value="1">Acima de 120 mg/dl (alta)</option>
+        </select>
+
+        <!-- Eletrocardiograma em repouso: texto completo na tela, sigla na API -->
+        <label for="ecg_repouso">Eletrocardiograma em repouso</label>
+        <select id="ecg_repouso" name="ecg_repouso" required>
+            <option value="">Selecione...</option>
+            <option value="Normal">Normal</option>
+            <option value="ST">ST — anormalidade na onda ST-T</option>
+            <option value="LVH">LVH — hipertrofia ventricular esquerda</option>
+        </select>
+
+        <!-- ===== Sintomas ===== -->
+        <h2>Sintomas</h2>
+
+        <!-- Tipo de dor no peito: texto completo na tela, sigla na API -->
+        <label for="tipo_dor_peito">Tipo de dor no peito</label>
+        <select id="tipo_dor_peito" name="tipo_dor_peito" required>
+            <option value="">Selecione...</option>
+            <option value="ASY">ASY — Assintomático (sem dor no peito)</option>
+            <option value="ATA">ATA — Angina atípica</option>
+            <option value="NAP">NAP — Dor não anginosa</option>
+            <option value="TA">TA — Angina típica</option>
+        </select>
+
+        <!-- ===== Teste de esforço ===== -->
+        <h2>Teste de esforço</h2>
+
+        <!-- Frequência cardíaca máxima: 50 a 250 bpm -->
+        <label for="freq_cardiaca_max">Frequência cardíaca máxima (bpm)</label>
+        <input type="number" id="freq_cardiaca_max" name="freq_cardiaca_max" min="50" max="250" required>
+
+        <!-- Angina no exercício: o usuário vê "Sim/Não", a API recebe "S/N" -->
+        <label for="angina_exercicio">Angina durante o exercício</label>
+        <select id="angina_exercicio" name="angina_exercicio" required>
+            <option value="">Selecione...</option>
+            <option value="S">Sim</option>
+            <option value="N">Não</option>
+        </select>
+
+        <!-- Depressão do segmento ST: decimal de -5 a 10; step="0.1" aceita uma casa decimal -->
+        <label for="depressao_st">Depressão do segmento ST (Oldpeak)</label>
+        <input type="number" id="depressao_st" name="depressao_st" min="-5" max="10" step="0.1" required>
+
+        <!-- Inclinação do segmento ST no pico do exercício -->
+        <label for="inclinacao_st">Inclinação do segmento ST no pico do exercício</label>
+        <select id="inclinacao_st" name="inclinacao_st" required>
+            <option value="">Selecione...</option>
+            <option value="Subindo">Subindo</option>
+            <option value="Plano">Plano</option>
+            <option value="Descendo">Descendo</option>
+        </select>
+
+        <!-- Botão de envio (o envio de verdade entra na etapa do JavaScript) -->
+        <button type="submit">Calcular risco</button>
+
+    </form>
+
+    <!-- Área onde o JavaScript escreve o resultado da previsão -->
+    <div id="resultado"></div>
+
+    <!-- Liga o JavaScript; fica no final para a página já estar carregada quando ele rodar -->
+    <script src="script.js"></script>
+
+</body>
+</html>

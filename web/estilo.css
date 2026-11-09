@@ -1,0 +1,178 @@
+/* ===== Página inteira ===== */
+body {
+    font-family: Arial, Helvetica, sans-serif;  /* fonte simples e legível */
+    background-color: #f2f4f7;                  /* fundo cinza bem claro */
+    color: #222;                                /* texto quase preto */
+    max-width: 640px;                           /* largura máxima do conteúdo */
+    margin: 0 auto;                             /* centraliza na tela */
+    padding: 20px;                              /* espaço nas bordas (bom no celular) */
+}
+
+/* ===== Título principal ===== */
+h1 {
+    color: #c62828;      /* vermelho escuro, combinando com o tema "coração" */
+    margin-bottom: 4px;  /* aproxima o título do aviso logo abaixo */
+}
+
+/* ===== Formulário como um "cartão" ===== */
+form {
+    background-color: #fff;                       /* fundo branco */
+    border-radius: 10px;                          /* cantos arredondados */
+    padding: 20px;                                /* espaço interno */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);     /* sombra leve */
+}
+
+/* ===== Títulos dos grupos (Dados pessoais, Exames...) ===== */
+h2 {
+    font-size: 1.1em;                 /* um pouco maior que o texto normal */
+    color: #444;                      /* cinza escuro */
+    border-bottom: 1px solid #ddd;    /* linha separando os grupos */
+    padding-bottom: 6px;              /* espaço entre o texto e a linha */
+    margin-top: 24px;                 /* espaço antes de cada grupo */
+}
+
+/* ===== Textos dos campos ===== */
+label {
+    display: block;        /* cada label ocupa a linha inteira (fica acima do campo) */
+    margin-top: 12px;      /* espaço entre um campo e o próximo */
+    margin-bottom: 4px;    /* aproxima o label do seu campo */
+    font-weight: bold;     /* negrito */
+    font-size: 0.95em;     /* levemente menor */
+}
+
+/* ===== Campos de número e listas ===== */
+input,
+select {
+    width: 100%;               /* ocupa toda a largura do cartão */
+    padding: 10px;             /* espaço interno (mais fácil de tocar no celular) */
+    border: 1px solid #bbb;    /* borda cinza */
+    border-radius: 6px;        /* cantos arredondados */
+    font-size: 1em;            /* mesmo tamanho do texto */
+    box-sizing: border-box;    /* o padding não aumenta a largura total */
+}
+
+/* ===== Campo em uso (clicado) ===== */
+input:focus,
+select:focus {
+    outline: none;             /* remove o contorno padrão do navegador */
+    border-color: #1e88e5;     /* borda azul destacando o campo ativo */
+}
+
+/* ===== Botão de envio ===== */
+button {
+    width: 100%;                  /* largura toda */
+    margin-top: 24px;             /* espaço acima do botão */
+    padding: 14px;                /* botão alto, fácil de clicar */
+    background-color: #c62828;    /* vermelho escuro */
+    color: #fff;                  /* texto branco */
+    border: none;                 /* sem borda */
+    border-radius: 6px;           /* cantos arredondados */
+    font-size: 1.1em;             /* texto maior */
+    font-weight: bold;            /* negrito */
+    cursor: pointer;              /* mãozinha ao passar o mouse */
+}
+
+/* ===== Botão com o mouse em cima ===== */
+button:hover {
+    background-color: #8e0000;    /* vermelho mais escuro */
+}
+
+/* ===== Cartão de resultado (base comum) ===== */
+.cartao {
+    margin-top: 20px;                             /* espaço abaixo do formulário */
+    padding: 20px;                                /* espaço interno */
+    border-radius: 10px;                          /* cantos arredondados */
+    background-color: #fff;                       /* fundo branco (padrão) */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);     /* sombra leve */
+    border-left: 8px solid #999;                  /* faixa colorida à esquerda */
+}
+
+/* Risco ALTO: tons de vermelho */
+.cartao.alto {
+    background-color: #ffebee;    /* vermelho bem claro */
+    border-left-color: #c62828;   /* faixa vermelha */
+}
+
+/* Risco BAIXO: tons de verde */
+.cartao.baixo {
+    background-color: #e8f5e9;    /* verde bem claro */
+    border-left-color: #2e7d32;   /* faixa verde */
+}
+
+/* Mensagem de erro: tons de laranja */
+.cartao.erro {
+    background-color: #fff3e0;    /* laranja bem claro */
+    border-left-color: #ef6c00;   /* faixa laranja */
+}
+
+/* Mensagem "Calculando...": cinza */
+.cartao.carregando {
+    color: #666;                  /* texto cinza */
+}
+
+/* Título "Risco ALTO" / "Risco BAIXO" */
+.risco-titulo {
+    font-size: 1.4em;             /* texto grande */
+    font-weight: bold;            /* negrito */
+}
+
+/* Cor do título conforme o risco */
+.alto .risco-titulo {
+    color: #c62828;               /* vermelho */
+}
+.baixo .risco-titulo {
+    color: #2e7d32;               /* verde */
+}
+
+/* Número da probabilidade em destaque */
+.probabilidade {
+    font-size: 2.6em;             /* bem grande */
+    font-weight: bold;            /* negrito */
+    margin-top: 8px;              /* espaço acima */
+}
+
+/* Textos pequenos de explicação (abaixo do número e da barra) */
+.legenda {
+    font-size: 0.85em;            /* menor */
+    color: #666;                  /* cinza */
+}
+
+/* Barra de probabilidade (o "trilho" cinza) */
+.barra {
+    position: relative;           /* permite posicionar a marca do limiar dentro dela */
+    height: 14px;                 /* altura da barra */
+    background-color: #ddd;       /* trilho cinza */
+    border-radius: 7px;           /* barra arredondada */
+    margin-top: 14px;             /* espaço acima */
+    margin-bottom: 4px;           /* espaço abaixo */
+    overflow: hidden;             /* o preenchimento não "vaza" das bordas arredondadas */
+}
+
+/* Parte preenchida da barra (a largura vem do JavaScript) */
+.barra-preenchida {
+    height: 100%;                 /* mesma altura do trilho */
+}
+
+/* Cor do preenchimento conforme o risco */
+.alto .barra-preenchida {
+    background-color: #c62828;    /* vermelho */
+}
+.baixo .barra-preenchida {
+    background-color: #2e7d32;    /* verde */
+}
+
+/* Linha vertical no limiar de 30% (a posição vem do JavaScript) */
+.marca-limiar {
+    position: absolute;           /* posicionada em relação à barra */
+    top: 0;                       /* do topo... */
+    bottom: 0;                    /* ...até a base da barra */
+    width: 3px;                   /* linha fina */
+    background-color: #000;       /* preta */
+}
+
+/* Aviso "Projeto de estudo..." */
+.aviso {
+    font-size: 0.85em;            /* menor */
+    color: #666;                  /* cinza */
+    font-style: italic;           /* itálico */
+}

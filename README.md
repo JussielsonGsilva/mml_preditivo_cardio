@@ -136,8 +136,12 @@ mml_preditivo_cardio/
 ├── 17_avaliacao_final.py       # Etapa 9: avaliação final no teste (limiar 0,50 × 0,30)
 ├── 18_explicar_modelo.py       # Etapa 9: pesos e razão de chances de cada variável
 ├── 19_salvar_modelo.py         # Etapa 10: monta a esteira completa, confere e salva o modelo
-├── api.py                      # Etapa 10: API de previsões (FastAPI)
+├── api.py                      # Etapa 10: API de previsões (FastAPI) + entrega da interface em /app
 ├── preprocessamento.py         # Etapa 10: classe TratadorColesterol (usada pelo modelo salvo e pela API)
+├── web/                        # Etapa 12: interface web (servida pela API em /app)
+│   ├── index.html              # Formulário com os 11 campos e área de resultado
+│   ├── estilo.css              # Visual do formulário e do cartão de resultado
+│   └── script.js               # Envia os dados para /prever e monta o cartão
 └── README.md                # Este documento
 ```
 
@@ -1695,6 +1699,93 @@ Saída esperada:
 
 Os resultados são coerentes com a explicação do modelo: a API aplica exatamente a mesma esteira avaliada nas etapas anteriores.
 
+### 6.30. Interface web (HTML, CSS e JavaScript)
+
+Para que qualquer pessoa use o modelo sem conhecer JSON ou siglas, foi criada uma **interface web** com formulário e cartão de resultado. Ela é feita em **HTML, CSS e JavaScript puros** (sem frameworks) e é **servida pela própria API**, no endereço `/app`.
+
+#### Endereços da aplicação
+
+| Endereço | O que entrega |
+|---|---|
+| `/` | JSON confirmando que a API está no ar |
+| `/docs` | Documentação interativa da API (com o guia de siglas) |
+| `/prever` | Rota de previsão (POST com JSON) |
+| **`/app`** | **Interface web** (arquivos da pasta `web/`) |
+
+A entrega dos arquivos é feita pelo `StaticFiles` do FastAPI, adicionado ao `api.py`:
+
+```python
+# Entrega os arquivos da pasta "web" no endereço /app;
+# html=True faz /app abrir automaticamente o web/index.html
+app.mount("/app", StaticFiles(directory="web", html=True), name="web")
+```
+
+> A pasta `web/` precisa existir **antes** de o servidor iniciar; caso contrário, o `StaticFiles` gera erro.
+
+#### Arquivos da interface
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `web/index.html` | **Estrutura**: formulário com os 11 campos, em 4 grupos (Dados pessoais, Exames em repouso, Sintomas, Teste de esforço), e a área de resultado |
+| `web/estilo.css` | **Visual**: formulário em "cartão", campos em largura total, botão vermelho e cartão de resultado colorido |
+| `web/script.js` | **Comportamento**: lê o formulário, converte os tipos, envia para `/prever` e monta o cartão de resultado |
+
+#### Formulário (HTML)
+
+| Elemento | Uso |
+|---|---|
+| `<input type="number">` com `min`/`max` | Campos numéricos, com os **mesmos limites da API** (seção 6.28) |
+| `<select>` + `<option>` | Listas de opções: o usuário vê o **texto em português** e o `value` guarda o **código da API** (ex: vê "ASY — Assintomático (sem dor no peito)", envia `ASY`) |
+| `<label for="...">` | Texto de cada campo |
+| `required` | O navegador impede o envio com campos vazios |
+
+Assim, **nenhum usuário precisa decorar siglas**, e os valores enviados são sempre válidos para a API.
+
+#### Envio e resultado (JavaScript)
+
+Ao clicar em **Calcular risco**, o `script.js`:
+
+| Passo | Código | O que faz |
+|---|---|---|
+| 1 | `evento.preventDefault()` | Impede a página de recarregar |
+| 2 | `new FormData(formulario)` | Lê todos os campos |
+| 3 | `parseInt` / `parseFloat` | Converte texto em número (o formulário entrega `"54"`, a API espera `54`) |
+| 4 | `fetch("/prever", {...})` | Envia o JSON para a API (equivalente ao `curl` usado nos testes) |
+| 5 | `innerHTML` | Monta o cartão de resultado com o HTML gerado a partir da resposta |
+
+#### Cartão de resultado
+
+| Parte | Conteúdo |
+|---|---|
+| Cor do cartão | **Vermelho claro** para risco ALTO, **verde claro** para risco BAIXO |
+| Título | "Risco ALTO" ou "Risco BAIXO" |
+| Número em destaque | Probabilidade estimada (ex: **93.5%**) |
+| Barra | Preenchida até a probabilidade, com uma **linha preta no limiar de 30%** — mostra visualmente de que lado do limiar o paciente está |
+| Textos | Interpretação e aviso de que o projeto não substitui avaliação médica |
+
+Mensagens especiais também aparecem em cartão: **"Calculando..."** (cinza) durante a requisição, **"Dados inválidos"** (laranja) se a API recusar os dados e **"Não foi possível falar com a API"** (laranja) se o servidor estiver desligado.
+
+#### Como usar
+
+**Terminal 1** — na raiz do projeto, com o `(.venv)` ativo:
+
+```bash
+# Liga o servidor (API + interface)
+uvicorn api:app --reload
+```
+
+**Navegador** — acesse **http://127.0.0.1:8000/app**, preencha o formulário e clique em **Calcular risco**.
+
+> Após alterar `estilo.css` ou `script.js`, atualize a página com `Ctrl+Shift+R` para o navegador baixar a versão nova (em vez de usar a guardada em cache).
+
+#### Testes
+
+| Teste | Dados | Resultado esperado |
+|---|---|---|
+| Risco alto | 54 anos, Masculino, pressão 140, colesterol 289, glicemia até 120, ECG Normal, ASY, freq. máx. 122, angina Sim, depressão ST 1.5, inclinação Plano | Cartão vermelho, **Risco ALTO, 93.5%**, barra bem à direita da linha do limiar |
+| Risco baixo | 40 anos, Feminino, pressão 120, colesterol 200, glicemia até 120, ECG Normal, ATA, freq. máx. 170, angina Não, depressão ST 0, inclinação Subindo | Cartão verde, **Risco BAIXO, 1.4%**, barra à esquerda da linha do limiar |
+| API desligada | Qualquer, com o servidor parado (`Ctrl+C` no terminal 1) | Cartão laranja: "Não foi possível falar com a API. Ela está ligada?" |
+
 ---
 
 ## 7. Etapas do projeto e andamento
@@ -1712,6 +1803,7 @@ Os resultados são coerentes com a explicação do modelo: a API aplica exatamen
 | 9 | Avaliação e explicação do modelo (matriz de confusão, limiar 0,30, avaliação final — recall 94,1%, pesos das variáveis) | ✅ Concluída |
 | 10 | API para previsões (transformador do colesterol, modelo salvo, FastAPI, campos em português, validação, previsão com o modelo) | ✅ Concluída |
 | 11 | Publicação no GitHub (`.gitignore`, `requirements.txt`, repositório público) | ✅ Publicado — atualizado a cada etapa |
+| 12 | Interface web (formulário, envio para a API, cartão de resultado colorido) | ✅ Concluída |
 
 ---
 
