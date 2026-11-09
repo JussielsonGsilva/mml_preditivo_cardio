@@ -106,6 +106,8 @@ mml_preditivo_cardio/
 │   ├── teste_final.csv      # Teste 100% numérico, mesmas colunas do treino
 │   ├── treino_padronizado.csv  # Treino com colunas contínuas padronizadas (média 0, desvio 1)
 │   └── teste_padronizado.csv   # Teste padronizado com a média e o desvio do treino
+├── modelos/
+│   └── modelo_cardio.joblib    # Esteira completa treinada + limiar 0,30 (usado pela API)
 ├── graficos/
 │   ├── 01_distribuicao_alvo.png          # Pacientes com e sem doença
 │   ├── 02_dor_peito_vs_diagnostico.png   # Tipo de dor no peito × diagnóstico
@@ -133,6 +135,8 @@ mml_preditivo_cardio/
 ├── 16_limiar_decisao.py        # Etapa 9: efeito do limiar de decisão (validação cruzada no treino)
 ├── 17_avaliacao_final.py       # Etapa 9: avaliação final no teste (limiar 0,50 × 0,30)
 ├── 18_explicar_modelo.py       # Etapa 9: pesos e razão de chances de cada variável
+├── 19_salvar_modelo.py         # Etapa 10: monta a esteira completa, confere e salva o modelo
+├── preprocessamento.py         # Etapa 10: classe TratadorColesterol (usada pelo modelo salvo e pela API)
 └── README.md                # Este documento
 ```
 
@@ -163,7 +167,7 @@ Todos os comandos abaixo são executados **no terminal**, a partir da pasta onde
 
 Repositório: **https://github.com/JussielsonGsilva/mml_preditivo_cardio**
 
-O repositório já contém todos os scripts, os gráficos e o dataset original (`dados/heart.csv`, licença CC0). Basta clonar, criar o ambiente e instalar as bibliotecas:
+O repositório já contém todos os scripts, os gráficos, o dataset original (`dados/heart.csv`, licença CC0) e o **modelo treinado** (`modelos/modelo_cardio.joblib`, ~5,6 KB, pronto para a API). Basta clonar, criar o ambiente e instalar as bibliotecas:
 
 ```bash
 # Baixa o projeto completo do GitHub
@@ -1372,6 +1376,108 @@ Gráfico salvo em graficos/08_pesos_modelo.png
 4. **O colesterol medido (`Cholesterol`) tem peso quase zero (0,02)**, coerente com a correlação fraca (+0,10) encontrada sem os zeros.
 5. **Pesos mostram associação, não causa.** O modelo aprende padrões dos dados; não prova que uma característica provoca a doença.
 
+### 6.25. API — transformador personalizado do colesterol
+
+**Contexto:** a API vai receber os dados de um paciente **no formato original** (ex: `"Sex": "M"`, `"ChestPainType": "ASY"`, `"Cholesterol": 0`), e não nas 19 colunas tratadas. Por isso, o modelo salvo precisa carregar **todo o caminho** de preparação, montado numa única esteira (`Pipeline`):
+
+```
+Dados originais do paciente
+  → tratamento do colesterol (mediana + Colesterol_ausente)
+  → padronização das contínuas + one-hot das colunas de texto
+  → Regressão Logística (probabilidade)
+  → limiar 0,30 (decisão final)
+```
+
+O scikit-learn já tem prontos o padronizador (`StandardScaler`) e o one-hot (`OneHotEncoder`), mas **não** tem o tratamento específico do colesterol definido neste projeto. Por isso foi criada a classe **`TratadorColesterol`**, que segue o mesmo padrão dos transformadores do scikit-learn:
+
+| Método | O que faz |
+|---|---|
+| `fit` | **Aprende** a mediana do colesterol (só valores reais, maiores que zero) |
+| `transform` | **Aplica**: cria `Colesterol_ausente` e troca os zeros pela mediana aprendida |
+
+Ela reproduz **exatamente** o que o script `09_tratar_colesterol.py` fazia (seção 6.14), mas num formato que pode entrar na esteira.
+
+**Por que um módulo separado (`preprocessamento.py`, sem número):** o modelo salvo guarda uma **referência** a essa classe. Quem carregar o modelo depois — o script de treino e a API — precisa **importar a classe do mesmo arquivo** (`from preprocessamento import TratadorColesterol`). Por isso ela fica num módulo próprio, e não dentro de um script numerado.
+
+O arquivo tem um **teste rápido** dentro do bloco `if __name__ == "__main__":`, que só roda quando o arquivo é executado diretamente (não roda quando outro script faz o `import`).
+
+Com o `(.venv)` ativo, na raiz do projeto:
+
+```bash
+# Executa o teste rápido do módulo (requer dados/treino.csv, gerado pelo script 08)
+python preprocessamento.py
+```
+
+Saída esperada no terminal (mesmos números da seção 6.14):
+
+```
+Mediana aprendida: 239.0 mg/dl
+Zeros antes:  129
+Zeros depois: 0
+Colesterol_ausente = 1 em 129 pacientes
+Colunas: 13 (12 originais + Colesterol_ausente)
+```
+
+### 6.26. API — esteira completa e modelo salvo
+
+O script monta **toda a preparação e o modelo numa única esteira**, treina com os dados **no formato original** (`dados/treino.csv`, com texto e zeros) e salva o resultado em arquivo.
+
+**Esteira completa:**
+
+| Etapa | Peça | O que faz |
+|---|---|---|
+| 1 | `TratadorColesterol` | Mediana do treino nos zeros + coluna `Colesterol_ausente` |
+| 2 | `StandardScaler` | Padroniza `Age`, `RestingBP`, `Cholesterol`, `MaxHR`, `Oldpeak` |
+| 2 | `OneHotEncoder(drop="if_binary")` | Converte as 5 colunas de texto (binárias viram uma coluna só) |
+| 2 | `remainder="passthrough"` | `FastingBS` e `Colesterol_ausente` passam sem mudança |
+| 3 | `LogisticRegression` | Calcula a probabilidade de doença |
+
+**Por que `OneHotEncoder` e não `get_dummies`:** o `get_dummies` (usado na seção 6.15) não "lembra" as categorias do treino; aplicado a **um único paciente**, geraria só as colunas daquele paciente. O `OneHotEncoder` **aprende** as categorias no `fit` e sempre gera as mesmas colunas, na mesma ordem — requisito obrigatório para uma API que recebe um paciente por vez.
+
+**Por que `joblib`:** grava um objeto Python (a esteira **já treinada**) em arquivo. Depois, `joblib.load` traz o objeto de volta pronto para prever, sem treinar novamente.
+
+**Conteúdo do arquivo `modelos/modelo_cardio.joblib`** (um "pacote" em formato de dicionário):
+
+| Chave | Conteúdo |
+|---|---|
+| `esteira` | Esteira completa treinada |
+| `limiar` | `0.30` (seção 6.22) |
+| `colunas_entrada` | Os 11 campos que um paciente precisa informar |
+| `versao_sklearn` | `1.9.1` — carregar o arquivo com outra versão do scikit-learn pode falhar ou gerar resultados diferentes |
+
+Com o `(.venv)` ativo, na raiz do projeto:
+
+```bash
+# Monta a esteira completa, treina com dados/treino.csv, confere no teste,
+# salva em modelos/modelo_cardio.joblib e prova que o arquivo funciona
+python 19_salvar_modelo.py
+```
+
+Saída esperada no terminal:
+
+```
+=== Esteira completa no TESTE (limiar 0.30) ===
+Recall:   94.1%
+Precisão: 83.5%
+Acurácia: 86.4%
+
+Modelo salvo em modelos/modelo_cardio.joblib (5.6 KB)
+
+=== Conferência do arquivo salvo ===
+Limiar guardado: 0.3
+Campos de entrada: 11 -> ['Age', 'Sex', 'ChestPainType', 'RestingBP', 'Cholesterol', 'FastingBS', 'RestingECG', 'MaxHR', 'ExerciseAngina', 'Oldpeak', 'ST_Slope']
+Versão do scikit-learn: 1.9.1
+Previsões idênticas ao modelo em memória: True
+```
+
+#### Resultado
+
+- **A esteira completa reproduz exatamente o resultado oficial** da seção 6.23 (recall 94,1%, precisão 83,5%, acurácia 86,4%), agora partindo dos dados **no formato original**.
+- O modelo completo ocupa só **~5,6 KB**.
+- **`True`** na última linha prova que o modelo **carregado do arquivo** faz previsões idênticas ao modelo em memória.
+
+> ⚠️ **Segurança:** arquivos `.joblib` podem executar código ao serem carregados. **Só carregue arquivos `.joblib` de fontes confiáveis** — como o gerado por este próprio script.
+
 ---
 
 ## 7. Etapas do projeto e andamento
@@ -1387,7 +1493,7 @@ Gráfico salvo em graficos/08_pesos_modelo.png
 | 7 | Preparação dos dados (treino/teste, colesterol, codificação) | ✅ Concluída |
 | 8 | Treinamento dos modelos (padronização, Regressão Logística, Random Forest, validação cruzada, escolha: **Regressão Logística**) | ✅ Concluída |
 | 9 | Avaliação e explicação do modelo (matriz de confusão, limiar 0,30, avaliação final — recall 94,1%, pesos das variáveis) | ✅ Concluída |
-| 10 | API para previsões | ⏳ Pendente |
+| 10 | API para previsões (transformador do colesterol ✅, modelo salvo ✅, API ⏳) | 🔄 Em andamento |
 | 11 | Publicação no GitHub (`.gitignore`, `requirements.txt`, repositório público) | ✅ Publicado — atualizado a cada etapa |
 
 ---
