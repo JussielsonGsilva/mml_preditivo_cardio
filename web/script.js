@@ -90,14 +90,21 @@ formulario.addEventListener("submit", async function (evento) {
             body: JSON.stringify(paciente)
         });
 
-        // Converte a resposta da API (JSON) em objeto JavaScript
-        const dados = await resposta.json();
+        // 429 = o Nginx barrou por excesso de pedidos seguidos (limite de requisições).
+        // Verificado ANTES de ler o JSON, porque nesse caso o Nginx responde em HTML, não em JSON
+        if (resposta.status === 429) {
+            mostrarMensagem("Muitas tentativas seguidas. Aguarde alguns segundos e tente de novo.", "erro");
+            return;
+        }
 
         // resposta.ok é falso quando a API recusa os dados (ex: erro 422)
         if (!resposta.ok) {
             mostrarMensagem("Dados inválidos: confira os campos e tente novamente.", "erro");
             return;
         }
+
+        // Converte a resposta da API (JSON) em objeto JavaScript
+        const dados = await resposta.json();
 
         // Monta o cartão colorido com o resultado
         mostrarResultado(dados);

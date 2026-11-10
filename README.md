@@ -2003,6 +2003,63 @@ done
 | `/app/estilo.css`, `/app/script.js` | 200 | ✅ 200 |
 | `/.git/config`, `/api.py`, `/dados/heart.csv`, `/modelos/...`, `/.venv/bin/python`, `/requirements.txt` | 404 | ✅ 404 |
 
+#### Limite de requisições (Nginx)
+
+A rota `/prever` é a única que executa o modelo. Para impedir que um robô dispare centenas de cálculos por segundo e sobrecarregue a VPS, o Nginx conta os pedidos de cada IP e barra o excesso com o erro **429 (Too Many Requests)**, antes de chegar na API.
+
+**Zona usada:** o CloudPanel já cria no `/etc/nginx/nginx.conf` a zona abaixo, que não estava sendo usada por nenhum site:
+
+```nginx
+# 1 pedido por segundo por IP; 10 MB de memória para guardar a contagem dos IPs
+limit_req_zone $binary_remote_addr zone=limit:10m rate=1r/s;
+```
+
+Ela foi reaproveitada, sem alterar o `nginx.conf` (que o CloudPanel pode sobrescrever em atualizações). A pasta `/etc/nginx/conf.d/` não é carregada pelo Nginx do CloudPanel, por isso também não foi usada.
+
+**Onde foi aplicada:** CloudPanel → Sites → `cardio.sistemasdatabase.cloud` → aba **Vhost**, bloco colado **imediatamente acima** do `location / {` (editar pelo painel, e não direto no arquivo em `/etc/nginx/sites-enabled/`, evita que o CloudPanel desfaça a mudança):
+
+```nginx
+  # "= /prever": vale só para esse endereço exato; o resto do site segue no "location /"
+  location = /prever {
+    # Zona "limit" (1 por segundo por IP); burst=5 aceita 5 cliques extras seguidos; nodelay atende na hora
+    limit_req zone=limit burst=5 nodelay;
+    # Quem passar do limite recebe 429 (o padrão do Nginx seria 503)
+    limit_req_status 429;
+    # O formulário manda menos de 1 KB; acima de 8 KB o pedido é recusado (erro 413)
+    client_max_body_size 8k;
+
+    # Repasse para a API, sem a barra no final (o endereço /prever segue como chegou)
+    proxy_pass http://127.0.0.1:{{app_port}};
+    proxy_http_version 1.1;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Server $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host $host;
+    # A previsão leva milissegundos: 30 s de espera máxima é suficiente
+    proxy_connect_timeout 30;
+    proxy_send_timeout 30;
+    proxy_read_timeout 30;
+  }
+```
+
+**Teste** (terminal local, 10 pedidos seguidos):
+
+```bash
+# Dispara 10 pedidos de previsão seguidos e mostra só o código de resposta de cada um
+for i in $(seq 1 10); do
+  curl -s -o /dev/null -w "pedido $i: %{http_code}\n" \
+    -X POST https://cardio.sistemasdatabase.cloud/prever \
+    -H "Content-Type: application/json" \
+    -d '{"idade":54,"sexo":"M","pressao_repouso":140,"colesterol":289,"glicemia_jejum_alta":0,"ecg_repouso":"Normal","tipo_dor_peito":"ASY","freq_cardiaca_max":122,"angina_exercicio":"S","depressao_st":1.5,"inclinacao_st":"Plano"}'
+done
+```
+
+**Resultado:** pedidos 1 a 8 com **200** e 9 e 10 com **429**. Passaram 8 (e não 6 = 1 + burst de 5) porque cada `curl` abre uma conexão HTTPS nova; o loop levou cerca de 2 segundos, e nesse tempo a regra de 1 por segundo liberou mais 2 pedidos.
+
+**Na interface:** o `web/script.js` verifica o código 429 **antes** de ler a resposta (nesse caso o Nginx responde em HTML, não em JSON) e mostra o cartão laranja "Muitas tentativas seguidas. Aguarde alguns segundos e tente de novo."
+
 #### Como atualizar a aplicação
 
 1. **Computador local** — altere, teste e envie:
@@ -2072,7 +2129,7 @@ systemctl status cardio-api
 | 10 | API para previsões (transformador do colesterol, modelo salvo, FastAPI, campos em português, validação, previsão com o modelo) | ✅ Concluída |
 | 11 | Publicação no GitHub (`.gitignore`, `requirements.txt`, repositório público) | ✅ Publicado — atualizado a cada etapa |
 | 12 | Interface web (formulário, envio para a API, cartão de resultado colorido) | ✅ Concluída |
-| 13 | Publicação na VPS (CloudPanel, DNS, SSL, serviço systemd, testes de segurança) | ✅ No ar — [cardio.sistemasdatabase.cloud/app](https://cardio.sistemasdatabase.cloud/app/) |
+| 13 | Publicação na VPS (CloudPanel, DNS, SSL, serviço systemd, limite de requisições, testes de segurança) | ✅ No ar — [cardio.sistemasdatabase.cloud/app](https://cardio.sistemasdatabase.cloud/app/) |
 
 ---
 
