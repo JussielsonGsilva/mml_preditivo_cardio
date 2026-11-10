@@ -26,9 +26,10 @@
         <!-- ===== Dados pessoais ===== -->
         <h2>Dados pessoais</h2>
 
-        <!-- Idade: número inteiro entre 1 e 120 (mesmos limites da API) -->
+        <!-- Idade: número inteiro entre 1 e 120 (mesmos limites da API).
+             placeholder = texto de exemplo em cinza, some quando a pessoa digita -->
         <label for="idade">Idade (anos)</label>
-        <input type="number" id="idade" name="idade" min="1" max="120" required>
+        <input type="number" id="idade" name="idade" min="1" max="120" placeholder="ex.: 54" required>
 
         <!-- Sexo: o usuário vê "Masculino", a API recebe "M" -->
         <label for="sexo">Sexo</label>
@@ -41,13 +42,15 @@
         <!-- ===== Exames em repouso ===== -->
         <h2>Exames em repouso</h2>
 
-        <!-- Pressão arterial em repouso: 50 a 250 mm Hg -->
-        <label for="pressao_repouso">Pressão arterial em repouso (mm Hg)</label>
-        <input type="number" id="pressao_repouso" name="pressao_repouso" min="50" max="250" required>
+        <!-- Pressão arterial em repouso no padrão brasileiro (ex.: 12x8).
+             type="text" porque a pessoa digita o "x"; o script.js pega só o primeiro
+             número (a máxima) e converte para mm Hg (12 -> 120) antes de enviar à API -->
+        <label for="pressao_repouso">Pressão arterial em repouso (ex.: 12x8)</label>
+        <input type="text" id="pressao_repouso" name="pressao_repouso" placeholder="ex.: 12x8" autocomplete="off" required>
 
         <!-- Colesterol: 0 a 700; 0 significa exame não realizado -->
         <label for="colesterol">Colesterol (mg/dl) — use 0 se o exame não foi feito</label>
-        <input type="number" id="colesterol" name="colesterol" min="0" max="700" required>
+        <input type="number" id="colesterol" name="colesterol" min="0" max="700" placeholder="ex.: 200 (0 se não fez o exame)" required>
 
         <!-- Glicemia em jejum: o usuário vê a faixa, a API recebe 0 ou 1 -->
         <label for="glicemia_jejum_alta">Glicemia em jejum</label>
@@ -84,7 +87,7 @@
 
         <!-- Frequência cardíaca máxima: 50 a 250 bpm -->
         <label for="freq_cardiaca_max">Frequência cardíaca máxima (bpm)</label>
-        <input type="number" id="freq_cardiaca_max" name="freq_cardiaca_max" min="50" max="250" required>
+        <input type="number" id="freq_cardiaca_max" name="freq_cardiaca_max" min="50" max="250" placeholder="ex.: 150" required>
 
         <!-- Angina no exercício: o usuário vê "Sim/Não", a API recebe "S/N" -->
         <label for="angina_exercicio">Angina durante o exercício</label>
@@ -96,7 +99,7 @@
 
         <!-- Depressão do segmento ST: decimal de -5 a 10; step="0.1" aceita uma casa decimal -->
         <label for="depressao_st">Depressão do segmento ST (Oldpeak)</label>
-        <input type="number" id="depressao_st" name="depressao_st" min="-5" max="10" step="0.1" required>
+        <input type="number" id="depressao_st" name="depressao_st" min="-5" max="10" step="0.1" placeholder="ex.: 1.5" required>
 
         <!-- Inclinação do segmento ST no pico do exercício -->
         <label for="inclinacao_st">Inclinação do segmento ST no pico do exercício</label>
@@ -117,7 +120,7 @@
 
     <!-- Liga o JavaScript; fica no final para a página já estar carregada quando ele rodar.
          Mesma regra do CSS: ao alterar o script.js, AUMENTE o número do ?v= -->
-    <script src="script.js?v=2"></script>
+    <script src="script.js?v=3"></script>
 
 </body>
 </html>

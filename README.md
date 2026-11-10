@@ -1787,11 +1787,28 @@ app.mount("/app", StaticFiles(directory="web", html=True), name="web")
 | Elemento | Uso |
 |---|---|
 | `<input type="number">` com `min`/`max` | Campos numéricos, com os **mesmos limites da API** (seção 6.28) |
+| `placeholder="ex.: ..."` | Texto de exemplo em cinza dentro do campo vazio (some ao digitar) |
+| `<input type="text">` na pressão | Aceita o **padrão brasileiro** `12x8` (ver "Pressão no padrão brasileiro" abaixo) |
 | `<select>` + `<option>` | Listas de opções: o usuário vê o **texto em português** e o `value` guarda o **código da API** (ex: vê "ASY — Assintomático (sem dor no peito)", envia `ASY`) |
 | `<label for="...">` | Texto de cada campo |
 | `required` | O navegador impede o envio com campos vazios |
 
 Assim, **nenhum usuário precisa decorar siglas**, e os valores enviados são sempre válidos para a API.
+
+#### Pressão no padrão brasileiro
+
+No Brasil, a pressão é dita "12 por 8", que é a forma curta de **120/80 mm Hg**: o primeiro número é a pressão **máxima (sistólica)** e o segundo, a **mínima (diastólica)**. O dataset (`RestingBP`) e a API usam **só a máxima, em mm Hg** (ex: 120).
+
+Para a pessoa digitar como está acostumada, o campo aceita texto, e a função `converterPressao` do `script.js` faz a conversão antes do envio. A API não mudou.
+
+| Digitado | Enviado à API | Regra |
+|---|---|---|
+| `12x8`, `12/8`, `12 x 8`, `12` | `120` | Pega só o primeiro número; abaixo de 30 multiplica por 10 |
+| `13,5x9` | `135` | Aceita vírgula ou ponto e arredonda para inteiro |
+| `120x80` | `120` | Já está em mm Hg (30 ou mais): não multiplica |
+| `abc`, `3x2`, `30x20` | — (não envia) | Formato inválido ou fora de 50 a 250 mm Hg: o campo mostra "Digite a pressão no formato 12x8 (ou 120x80)." |
+
+A mínima (o "8") é ignorada porque o modelo não a utiliza.
 
 #### Envio e resultado (JavaScript)
 
@@ -1801,7 +1818,7 @@ Ao clicar em **Calcular risco**, o `script.js`:
 |---|---|---|
 | 1 | `evento.preventDefault()` | Impede a página de recarregar |
 | 2 | `new FormData(formulario)` | Lê todos os campos |
-| 3 | `parseInt` / `parseFloat` | Converte texto em número (o formulário entrega `"54"`, a API espera `54`) |
+| 3 | `parseInt` / `parseFloat` / `converterPressao` | Converte texto em número (o formulário entrega `"54"`, a API espera `54`; a pressão `"14x9"` vira `140`) |
 | 4 | `fetch("/prever", {...})` | Envia o JSON para a API (equivalente ao `curl` usado nos testes) |
 | 5 | `innerHTML` | Monta o cartão de resultado com o HTML gerado a partir da resposta |
 
@@ -1834,8 +1851,8 @@ uvicorn api:app --reload
 
 | Teste | Dados | Resultado esperado |
 |---|---|---|
-| Risco alto | 54 anos, Masculino, pressão 140, colesterol 289, glicemia até 120, ECG Normal, ASY, freq. máx. 122, angina Sim, depressão ST 1.5, inclinação Plano | Cartão vermelho, **Risco ALTO, 93.5%**, barra bem à direita da linha do limiar |
-| Risco baixo | 40 anos, Feminino, pressão 120, colesterol 200, glicemia até 120, ECG Normal, ATA, freq. máx. 170, angina Não, depressão ST 0, inclinação Subindo | Cartão verde, **Risco BAIXO, 1.4%**, barra à esquerda da linha do limiar |
+| Risco alto | 54 anos, Masculino, pressão 14x9, colesterol 289, glicemia até 120, ECG Normal, ASY, freq. máx. 122, angina Sim, depressão ST 1.5, inclinação Plano | Cartão vermelho, **Risco ALTO, 93.5%**, barra bem à direita da linha do limiar |
+| Risco baixo | 40 anos, Feminino, pressão 12x8, colesterol 200, glicemia até 120, ECG Normal, ATA, freq. máx. 170, angina Não, depressão ST 0, inclinação Subindo | Cartão verde, **Risco BAIXO, 1.4%**, barra à esquerda da linha do limiar |
 | API desligada | Qualquer, com o servidor parado (`Ctrl+C` no terminal 1) | Cartão laranja: "Não foi possível falar com a API. Ela está ligada?" |
 
 ### 6.31. Publicação na VPS (CloudPanel + Nginx + systemd)

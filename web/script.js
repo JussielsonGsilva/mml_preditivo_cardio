@@ -1,6 +1,7 @@
 // Campos que precisam ser enviados como NÚMERO INTEIRO
-// (o formulário entrega tudo como texto; a API espera números)
-const CAMPOS_INTEIROS = ["idade", "pressao_repouso", "colesterol",
+// (o formulário entrega tudo como texto; a API espera números).
+// A pressão não está aqui: ela tem tratamento próprio (função converterPressao)
+const CAMPOS_INTEIROS = ["idade", "colesterol",
                          "glicemia_jejum_alta", "freq_cardiaca_max"];
 
 // Campo que precisa ser enviado como número DECIMAL
@@ -9,6 +10,53 @@ const CAMPOS_DECIMAIS = ["depressao_st"];
 // Pega o formulário e a área de resultado pelo id
 const formulario = document.getElementById("formulario");
 const resultado = document.getElementById("resultado");
+
+// Pega o campo de pressão (validado à parte, por aceitar o formato "12x8")
+const campoPressao = document.getElementById("pressao_repouso");
+
+
+// Converte a pressão no padrão brasileiro para mm Hg, como a API espera.
+// Aceita "12x8", "12/8", "12 x 8", "13,5x9", "120x80" ou só "12".
+// Devolve o número em mm Hg (ex: 120) ou null se o texto não for válido.
+function converterPressao(texto) {
+
+    // Procura o PRIMEIRO número do texto (a pressão máxima), com ou sem decimal.
+    // ^\s*      -> início do texto, ignorando espaços
+    // \d{1,3}   -> de 1 a 3 dígitos (ex: 12 ou 120)
+    // ([.,]\d)? -> decimal opcional com ponto ou vírgula (ex: 13,5)
+    const achado = texto.match(/^\s*(\d{1,3}([.,]\d)?)/);
+
+    // Nenhum número no começo do texto: formato inválido
+    if (achado === null) {
+        return null;
+    }
+
+    // Troca vírgula por ponto ("13,5" -> "13.5") e converte em número
+    let maxima = parseFloat(achado[1].replace(",", "."));
+
+    // Abaixo de 30, está no formato curto brasileiro (12 = 120 mm Hg): multiplica por 10
+    if (maxima < 30) {
+        maxima = maxima * 10;
+    }
+
+    // Arredonda para inteiro (a API espera número inteiro: 13,5 -> 135)
+    maxima = Math.round(maxima);
+
+    // Fora dos limites aceitos pela API (50 a 250 mm Hg): inválido
+    if (maxima < 50 || maxima > 250) {
+        return null;
+    }
+
+    // Valor pronto para enviar
+    return maxima;
+}
+
+
+// Sempre que a pessoa digitar na pressão, limpa o aviso de erro anterior
+campoPressao.addEventListener("input", function () {
+    // setCustomValidity("") = campo volta a ser considerado válido
+    campoPressao.setCustomValidity("");
+});
 
 
 // Mostra uma mensagem simples (carregando ou erro) dentro de um cartão
@@ -67,7 +115,10 @@ formulario.addEventListener("submit", async function (evento) {
     // Percorre cada campo: nome (ex: "idade") e valor digitado (texto)
     for (const [campo, valor] of dadosFormulario.entries()) {
 
-        if (CAMPOS_INTEIROS.includes(campo)) {
+        if (campo === "pressao_repouso") {
+            // Pressão: converte "12x8" em 120 (mm Hg)
+            paciente[campo] = converterPressao(valor);
+        } else if (CAMPOS_INTEIROS.includes(campo)) {
             // Converte texto em número inteiro (ex: "54" -> 54)
             paciente[campo] = parseInt(valor, 10);
         } else if (CAMPOS_DECIMAIS.includes(campo)) {
@@ -77,6 +128,16 @@ formulario.addEventListener("submit", async function (evento) {
             // Campos de texto seguem como estão (ex: "M", "ASY")
             paciente[campo] = valor;
         }
+    }
+
+    // Pressão em formato que não deu para entender: avisa no próprio campo e não envia
+    if (paciente.pressao_repouso === null) {
+        // Mensagem que o navegador mostra no balão de erro do campo
+        campoPressao.setCustomValidity("Digite a pressão no formato 12x8 (ou 120x80).");
+        // Mostra o balão e coloca o cursor no campo
+        campoPressao.reportValidity();
+        // Para aqui: nada é enviado para a API
+        return;
     }
 
     // Mostra uma mensagem enquanto espera a resposta da API
