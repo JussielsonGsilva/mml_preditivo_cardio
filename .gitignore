@@ -11,3 +11,7 @@ dados/*
 # ...EXCETO o dataset original (licença CC0 permite redistribuir).
 # O "!" significa "não ignorar este arquivo"
 !dados/heart.csv
+
+# Atalho criado só na VPS (app -> web), para o Nginx do CloudPanel
+# encontrar o CSS e o JS da interface (ver seção 6.31 do README)
+/app

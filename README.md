@@ -15,6 +15,7 @@ Modelo de classificação que estima o risco de doença cardíaca a partir de da
 | **Modelo** | Regressão Logística com limiar de decisão ajustado para 30% |
 | **Resultado** (pacientes nunca vistos pelo modelo) | **Recall de 94,1%** — encontra 96 de cada 102 doentes · Acurácia 86,4% · Precisão 83,5% |
 | **Entrega** | API em FastAPI + interface web em HTML, CSS e JavaScript |
+| **Online** | [cardio.sistemasdatabase.cloud/app](https://cardio.sistemasdatabase.cloud/app/) — teste no navegador |
 | **Tecnologias** | Python · pandas · scikit-learn · matplotlib · FastAPI · Pydantic · Uvicorn · HTML/CSS/JS |
 
 ### Interface
@@ -1837,6 +1838,222 @@ uvicorn api:app --reload
 | Risco baixo | 40 anos, Feminino, pressão 120, colesterol 200, glicemia até 120, ECG Normal, ATA, freq. máx. 170, angina Não, depressão ST 0, inclinação Subindo | Cartão verde, **Risco BAIXO, 1.4%**, barra à esquerda da linha do limiar |
 | API desligada | Qualquer, com o servidor parado (`Ctrl+C` no terminal 1) | Cartão laranja: "Não foi possível falar com a API. Ela está ligada?" |
 
+### 6.31. Publicação na VPS (CloudPanel + Nginx + systemd)
+
+A aplicação está no ar em **https://cardio.sistemasdatabase.cloud/app/**.
+
+#### Como funciona em produção
+
+```
+Navegador ──HTTPS──► Nginx (CloudPanel, porta 443)
+                         │
+                         ├── arquivos .css/.js ──► lidos direto da pasta do site (app -> web)
+                         │
+                         └── todo o resto ──► Uvicorn em 127.0.0.1:8090 (serviço cardio-api)
+                                                  └── api.py + modelos/modelo_cardio.joblib
+```
+
+- O **Uvicorn escuta só em `127.0.0.1`**: a API não fica exposta diretamente na internet, só através do Nginx.
+- O serviço roda com um **usuário próprio (`cardio`)**, sem acesso de administrador.
+- Não há banco de dados nem arquivo `.env`: a aplicação não guarda os dados digitados.
+
+#### Passo a passo da publicação
+
+| # | Onde | O que foi feito |
+|---|---|---|
+| 1 | CloudPanel (navegador) | **Add Site → Python Site**, domínio `cardio.sistemasdatabase.cloud`, versão Python 3.12, porta da aplicação **8090**, usuário do site `cardio` |
+| 2 | Hostinger (painel de DNS) | Registro **A** `cardio` apontando para o IP da VPS |
+| 3 | CloudPanel → site → SSL/TLS | Certificado gratuito **Let's Encrypt** (válido por 90 dias) |
+| 4 | VPS, como `root` | `apt install -y python3.12-venv` (sem ele, a criação do ambiente virtual falha por falta do `ensurepip`) |
+| 5 | VPS, como `cardio` | Clone do repositório na pasta do site, criação do `.venv` e instalação do `requirements.txt` |
+| 6 | VPS, como `cardio` | Atalho `app -> web` (ver "Problema 2" abaixo) |
+| 7 | VPS, como `root` | Serviço `systemd` `cardio-api` para manter a API ligada sempre |
+
+#### Comandos na VPS (usuário `cardio`)
+
+```bash
+# Entra como o usuário do site (a partir do root)
+su - cardio
+
+# Vai para a pasta do site criada pelo CloudPanel
+cd ~/htdocs/cardio.sistemasdatabase.cloud
+
+# Baixa o projeto direto nesta pasta (o "." evita criar uma subpasta)
+git clone https://github.com/JussielsonGsilva/mml_preditivo_cardio.git .
+
+# Cria o ambiente virtual com o Python 3.12 do sistema
+/usr/bin/python3.12 -m venv .venv
+
+# Instala as bibliotecas usando o Python DO AMBIENTE (caminho completo, sem depender de alias)
+.venv/bin/python -m pip install -r requirements.txt
+
+# Cria o atalho "app" apontando para a pasta "web"
+ln -s web app
+```
+
+#### Serviço systemd (usuário `root`)
+
+Arquivo `/etc/systemd/system/cardio-api.service`:
+
+```ini
+[Unit]
+# Nome que aparece no "systemctl status"
+Description=API de Risco Cardiaco (FastAPI + Uvicorn)
+# Só inicia depois que a rede estiver pronta
+After=network.target
+
+[Service]
+# Roda como o usuário do site, nunca como root
+User=cardio
+Group=cardio
+# Pasta onde estão o api.py e a pasta modelos/
+WorkingDirectory=/home/cardio/htdocs/cardio.sistemasdatabase.cloud
+# Liga o Uvicorn do ambiente virtual, ouvindo só localmente na porta 8090
+ExecStart=/home/cardio/htdocs/cardio.sistemasdatabase.cloud/.venv/bin/uvicorn api:app --host 127.0.0.1 --port 8090 --workers 1 --proxy-headers
+# Se cair, sobe de novo sozinho após 5 segundos
+Restart=always
+RestartSec=5
+# Não grava arquivos .pyc (a pasta do projeto fica somente leitura para o serviço)
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# --- Proteções ---
+# O processo não consegue ganhar mais privilégios (ex: via sudo)
+NoNewPrivileges=true
+# Pasta /tmp isolada, só deste serviço
+PrivateTmp=true
+# Todo o sistema de arquivos fica somente leitura para o serviço
+ProtectSystem=strict
+# A pasta /home fica somente leitura (a API só precisa ler o modelo)
+ProtectHome=read-only
+# Impede alterar configurações do kernel e dos cgroups
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+# Liga automaticamente quando a VPS reiniciar
+WantedBy=multi-user.target
+```
+
+```bash
+# Recarrega a lista de serviços, ativa na inicialização e liga agora
+systemctl daemon-reload
+systemctl enable --now cardio-api
+
+# Confere se está "active (running)"
+systemctl status cardio-api
+```
+
+#### Problema 1 — `python` ignorando o ambiente virtual
+
+**Sintoma:** com o `(.venv)` ativo, `python -c "import joblib"` dava `ModuleNotFoundError`, mesmo após instalar as bibliotecas.
+
+**Causa:** o CloudPanel cria o arquivo `~/.python_version`, carregado pelo `~/.bashrc`, com um **alias** `python=/usr/bin/python3.12`. Um alias tem prioridade sobre o `PATH`, então o comando `python` sempre chamava o Python do sistema, mesmo com o ambiente ativo. O diagnóstico foi feito com:
+
+```bash
+# Mostra o que o comando "python" realmente executa (revelou o alias)
+type python
+
+# Lista cada linha executada no login, com o arquivo de origem (revelou o ~/.python_version)
+PS4='+ $BASH_SOURCE:$LINENO: ' bash -lixc exit
+```
+
+**Correção:** bloco adicionado ao **final** do `~/.bashrc` do usuário `cardio`:
+
+```bash
+# --- Correção: "python" respeita o ambiente virtual ativo ---
+# Remove o alias criado pelo CloudPanel (o 2>/dev/null esconde erro se ele não existir)
+unalias python 2>/dev/null
+# Recria "python" como função: decide qual Python usar na hora de rodar
+python() {
+    # Se há um ambiente virtual ativo...
+    if [ -n "$VIRTUAL_ENV" ]; then
+        # ...usa o Python dele
+        "$VIRTUAL_ENV/bin/python" "$@"
+    else
+        # ...senão, usa o Python 3.12 do sistema (comportamento original do CloudPanel)
+        /usr/bin/python3.12 "$@"
+    fi
+}
+```
+
+> Regra prática na VPS: para instalar pacotes, use sempre `.venv/bin/python -m pip`, que funciona com ou sem essa correção.
+
+#### Problema 2 — interface sem CSS e JavaScript
+
+**Sintoma:** `https://cardio.sistemasdatabase.cloud/app/` abria o formulário sem estilo; `estilo.css` e `script.js` retornavam **404**.
+
+**Causa:** o vhost do Nginx criado pelo CloudPanel tem uma regra própria para arquivos estáticos (`location ~* \.(css|js|jpg|...)$`) que **procura o arquivo na pasta do site**, sem passar pela API. O pedido `/app/estilo.css` era buscado em `.../cardio.sistemasdatabase.cloud/app/estilo.css`, que não existia (os arquivos ficam em `web/`).
+
+**Correção:** atalho `app -> web` na pasta do site (comando `ln -s web app`, como `cardio`). Assim o Nginx encontra os arquivos sem precisar alterar o vhost. O atalho existe só na VPS e está no `.gitignore` para não aparecer no `git status`.
+
+#### Testes de segurança
+
+Arquivos internos do projeto **não** podem ser baixados pelo navegador:
+
+```bash
+# Cada linha deve mostrar 404 (ou 403); 200 significaria arquivo exposto
+for u in /.git/config /api.py /dados/heart.csv /modelos/modelo_cardio.joblib /.venv/bin/python /requirements.txt; do
+  echo "$(curl -s -o /dev/null -w '%{http_code}' https://cardio.sistemasdatabase.cloud$u)  $u"
+done
+```
+
+| Endereço | Esperado | Obtido |
+|---|---|---|
+| `/`, `/app/`, `/docs` | 200 | ✅ 200 |
+| `/app/estilo.css`, `/app/script.js` | 200 | ✅ 200 |
+| `/.git/config`, `/api.py`, `/dados/heart.csv`, `/modelos/...`, `/.venv/bin/python`, `/requirements.txt` | 404 | ✅ 404 |
+
+#### Como atualizar a aplicação
+
+1. **Computador local** — altere, teste e envie:
+
+```bash
+# Na raiz do projeto local
+git add .
+git commit -m "descrição da alteração"
+git push
+```
+
+2. **VPS** — baixe a versão nova:
+
+```bash
+# Como root: entra no usuário do site
+su - cardio
+
+# Vai para a pasta do site e baixa as alterações
+cd ~/htdocs/cardio.sistemasdatabase.cloud
+git pull
+```
+
+3. **Reinicie o serviço só se mudou código Python ou o modelo** (`api.py`, `preprocessamento.py`, `modelos/`). Alterações só em `web/` já valem no próximo acesso.
+
+```bash
+# Como root (saia do cardio com "exit")
+systemctl restart cardio-api
+```
+
+#### Cache do CSS e JavaScript (`?v=`)
+
+O Nginx do CloudPanel manda o navegador guardar `.css` e `.js` **por tempo indeterminado** (`expires max`). Sem cuidado, quem já visitou o site continuaria vendo o estilo antigo.
+
+Por isso, no `web/index.html`, os arquivos são chamados com um número de versão:
+
+```html
+<link rel="stylesheet" href="estilo.css?v=1">
+<script src="script.js?v=1"></script>
+```
+
+**Regra:** ao alterar `estilo.css`, troque para `?v=2` (depois `?v=3`...); o mesmo para `script.js`. Para o navegador, um endereço novo é um arquivo novo, e ele baixa a versão atual.
+
+#### Uso de recursos
+
+O serviço roda com 1 worker e carrega o modelo uma única vez, quando inicia. Para ver o consumo de memória:
+
+```bash
+# Como root: a linha "Memory:" mostra quanto o serviço está usando
+systemctl status cardio-api
+```
+
 ---
 
 ## 7. Etapas do projeto e andamento
@@ -1855,6 +2072,7 @@ uvicorn api:app --reload
 | 10 | API para previsões (transformador do colesterol, modelo salvo, FastAPI, campos em português, validação, previsão com o modelo) | ✅ Concluída |
 | 11 | Publicação no GitHub (`.gitignore`, `requirements.txt`, repositório público) | ✅ Publicado — atualizado a cada etapa |
 | 12 | Interface web (formulário, envio para a API, cartão de resultado colorido) | ✅ Concluída |
+| 13 | Publicação na VPS (CloudPanel, DNS, SSL, serviço systemd, testes de segurança) | ✅ No ar — [cardio.sistemasdatabase.cloud/app](https://cardio.sistemasdatabase.cloud/app/) |
 
 ---
 
