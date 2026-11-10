@@ -62,9 +62,9 @@ Estima o risco de doença cardíaca a partir de dados clínicos.
 | Sigla | Significado |
 |---|---|
 | ASY | Assintomático (sem dor no peito) |
-| ATA | Angina atípica |
+| ATA | Angina atípica (parecida com angina, sem o padrão clássico) |
 | NAP | Dor não anginosa |
-| TA | Angina típica |
+| TA | Angina típica (aperto no esforço, melhora com repouso) |
 
 **ecg_repouso** — resultado do eletrocardiograma em repouso
 

@@ -121,7 +121,7 @@ Um recall alto significa poucos casos de doença passando despercebidos.
 |---|---|---|
 | `Age` | Idade do paciente | Número inteiro (anos) |
 | `Sex` | Sexo | `M` = masculino, `F` = feminino |
-| `ChestPainType` | Tipo de dor no peito | `TA` = angina típica, `ATA` = angina atípica, `NAP` = dor não anginosa, `ASY` = assintomático |
+| `ChestPainType` | Tipo de dor no peito | `TA` = angina típica (aperto no esforço, melhora com repouso), `ATA` = angina atípica (parecida com angina, sem o padrão clássico), `NAP` = dor não anginosa, `ASY` = assintomático |
 | `RestingBP` | Pressão arterial em repouso | mm Hg |
 | `Cholesterol` | Colesterol sérico | mg/dl |
 | `FastingBS` | Glicemia em jejum | `1` se > 120 mg/dl, `0` caso contrário |
